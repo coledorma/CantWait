@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+        <android.support.v7.preference.CheckBoxPreference
+            android:defaultValue="false"
+            android:key="text_colour_check"
+            android:title="White/Black Text"
+            android:summary="Check for black text or uncheck for white text"/>
+
+</PreferenceScreen>
