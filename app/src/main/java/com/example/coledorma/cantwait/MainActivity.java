@@ -30,6 +30,8 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.DatePicker;
 import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListAdapter;
 import android.widget.ListView;
@@ -113,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
         tabLayout = (TabLayout) findViewById(R.id.tabLayout);
         listView = (ListView) findViewById(R.id.listView);
         ctx = getApplicationContext();
+
 
         Bitmap bitmap = getThumbnail("testBImage.png");
         if (bitmap == null) {
