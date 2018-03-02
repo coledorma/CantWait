@@ -8,12 +8,30 @@
     tools:context="com.example.coledorma.cantwait.MainActivity"
     tools:showIn="@layout/activity_main">
 
+    <ImageView
+        android:id="@+id/bgColor_imageView"
+        android:background="#e0f7fa"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <ImageView
+        android:id="@+id/bg_imageView"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"/>
+
     <ListView
         android:id="@+id/listView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#e0f7fa"
+        android:background="@android:color/transparent"
+        android:cacheColorHint="@android:color/transparent"
         tools:layout_editor_absoluteX="8dp"
         tools:layout_editor_absoluteY="8dp"
-        tools:ignore="MissingConstraints" />
+        tools:ignore="MissingConstraints"
+        android:scaleType="centerCrop">
+
+    </ListView>
+
 </android.support.constraint.ConstraintLayout>

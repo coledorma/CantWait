@@ -9,6 +9,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.Point;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -22,6 +23,7 @@ import android.support.design.widget.TabLayout;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.view.Display;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -79,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "tag";
     private TabLayout tabLayout;
     private ListView listView;
+    private ImageView bg_imageView;
     private Context ctx;
     private ArrayList<Event> events = new ArrayList<Event>();
     private CustomStringComparator timeComparator = new CustomStringComparator();
@@ -96,8 +99,12 @@ public class MainActivity extends AppCompatActivity {
 
     private String[] galleryPermissions = {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE};
 
+    //Channel for event alarm
     int channel = 1;
-    int channel2 = 10000;
+    //Channel for reminder alarm
+    int reminderChannel = 50000;
+    //Channel for static alarm
+    int staticChannel = 100000;
 
     SharedPreferences sharedPrefs;
     SharedPreferences.Editor editor;
@@ -114,19 +121,22 @@ public class MainActivity extends AppCompatActivity {
 
         tabLayout = (TabLayout) findViewById(R.id.tabLayout);
         listView = (ListView) findViewById(R.id.listView);
+        bg_imageView = (ImageView) findViewById(R.id.bg_imageView);
         ctx = getApplicationContext();
 
+        // adapt the image to the size of the display
+        Display display = getWindowManager().getDefaultDisplay();
+        Point size = new Point();
+        display.getSize(size);
 
         Bitmap bitmap = getThumbnail("testBImage.png");
         if (bitmap == null) {
             //Set some default image that will be visible before selecting image
-            listView.setBackgroundResource(R.drawable.carnival_lighter);
-            listView.setCacheColorHint(getResources().getColor(android.R.color.transparent));
-            System.out.println("WE ARE NOT SETTING THE BACKGROUND");
+            //listView.setBackgroundResource(R.drawable.carnival_lighter);
         } else {
-            System.out.println("WE ARE SETTING THE BACKGROUND");
             BitmapDrawable background = new BitmapDrawable(bitmap);
-            listView.setBackgroundDrawable(background);
+            //bg_imageView.setImageDrawable(background);
+            bg_imageView.setBackground(background);
         }
 
         //Restore settings preferences
@@ -161,7 +171,8 @@ public class MainActivity extends AppCompatActivity {
 
         //Restore the alarm channels as they are all stored on separate channels
         channel = sharedPrefs.getInt("CHANNEL", channel);
-        channel2 = sharedPrefs.getInt("CHANNEL2", channel2);
+        reminderChannel = sharedPrefs.getInt("CHANNEL2", reminderChannel);
+        staticChannel = sharedPrefs.getInt("CHANNEL3", staticChannel);
 
         //Set the restored daily, short, long term, and alarm lists to lists that are local to the app
         if ((sharedDailyEvents != null && !sharedDailyEvents.isEmpty()) || (sharedShortEvents != null && !sharedShortEvents.isEmpty()) || (sharedLongEvents != null && !sharedLongEvents.isEmpty())) {
@@ -193,7 +204,8 @@ public class MainActivity extends AppCompatActivity {
                 //Channel for the actual event alarm
                 channel++;
                 //Channel2 for the reminder alarm for the events
-                channel2++;
+                reminderChannel++;
+                staticChannel++;
 
                 //Recurring dialog
                 final AlertDialog.Builder recurDialog = new AlertDialog.Builder(MainActivity.this);
@@ -291,9 +303,13 @@ public class MainActivity extends AppCompatActivity {
 
                                     //If there is a reminder alarm need to be set, build alarm intent
                                     if (reminderTime.length() >= 1) {
-                                        buildIntent("Are you getting ready for " + shortEvents.get(shortEvents.size() - 1).getName().substring(19, shortEvents.get(shortEvents.size() - 1).getName().length() + 1) + "?", reminderTime, channel2,
+                                        buildIntent("Are you getting ready for " + shortEvents.get(shortEvents.size() - 1).getName().substring(19, shortEvents.get(shortEvents.size() - 1).getName().length()) + "?", reminderTime, reminderChannel,
                                                 alarmManager, notificationIntent, true);
                                     }
+
+                                    //Function for building static alarms based on time called here
+                                    staticAlarmBuilder(shortEvents.get(shortEvents.size() - 1).getName().substring(19, shortEvents.get(shortEvents.size() - 1).getName().length()), dayOfMonth + " " + (monthOfYear + 1) + "-" + year,
+                                            channel, alarmManager, notificationIntent, false);
 
                                     updateAdapterList();
 
@@ -309,9 +325,13 @@ public class MainActivity extends AppCompatActivity {
 
                                     //If there is a reminder alarm need to be set, build alarm intent
                                     if (reminderTime.length() >= 1) {
-                                        buildIntent("Are you getting ready for " + longEvents.get(longEvents.size() - 1).getName().substring(19, longEvents.get(longEvents.size() - 1).getName().length() + 1) + "?", reminderTime, channel2,
+                                        buildIntent("Are you getting ready for " + longEvents.get(longEvents.size() - 1).getName().substring(19, longEvents.get(longEvents.size() - 1).getName().length()) + "?", reminderTime, reminderChannel,
                                                 alarmManager, notificationIntent, true);
                                     }
+
+                                    //Function for building static alarms based on time called here
+                                    staticAlarmBuilder(longEvents.get(longEvents.size() - 1).getName().substring(19, longEvents.get(longEvents.size() - 1).getName().length()), dayOfMonth + " " + (monthOfYear + 1) + "-" + year,
+                                            channel, alarmManager, notificationIntent, false);
 
                                     updateAdapterList();
                                 }
@@ -338,6 +358,7 @@ public class MainActivity extends AppCompatActivity {
                                 newEvent[1] = input.getText().toString();
                                 dialog.cancel();
 
+                                //If daily, show Timepicker dialog, else show date dialog
                                 if (tabNum == 0) {
                                     mTimePicker.show();
                                 } else if (tabNum > 0) {
@@ -415,7 +436,6 @@ public class MainActivity extends AppCompatActivity {
 
                                 if (tabNum == 0) {
                                     String new24Time = timeTo24Conversion(dailyEvents.get(position).getTime());
-
                                     hour = Integer.parseInt(new24Time.substring(0, new24Time.indexOf(":")));
                                     minute = Integer.parseInt(new24Time.substring(new24Time.indexOf(":") + 1,
                                             new24Time.length()));
@@ -515,9 +535,13 @@ public class MainActivity extends AppCompatActivity {
 
                                                     //If there is a reminder alarm need to be set, build alarm intent
                                                     if (reminderTime.length() >= 1) {
-                                                        buildIntent("Are you getting ready for " + shortEvents.get(shortEvents.size() - 1).getName().substring(19, shortEvents.get(shortEvents.size() - 1).getName().length() + 1) + "?", reminderTime, channel2,
+                                                        buildIntent("Are you getting ready for " + shortEvents.get(shortEvents.size() - 1).getName().substring(19, shortEvents.get(shortEvents.size() - 1).getName().length()) + "?", reminderTime, reminderChannel,
                                                                 alarmManager, notificationIntent, true);
                                                     }
+
+                                                    //Function for building static alarms based on time called here
+                                                    staticAlarmBuilder(shortEvents.get(shortEvents.size() - 1).getName().substring(19, shortEvents.get(shortEvents.size() - 1).getName().length()), dayOfMonth + " " + (monthOfYear + 1) + "-" + year,
+                                                            channel, alarmManager, notificationIntent, false);
 
                                                     updateAdapterList();
 
@@ -532,9 +556,13 @@ public class MainActivity extends AppCompatActivity {
 
                                                     //If there is a reminder alarm need to be set, build alarm intent
                                                     if (reminderTime.length() >= 1) {
-                                                        buildIntent("Are you getting ready for " + longEvents.get(longEvents.size() - 1).getName().substring(19, longEvents.get(longEvents.size() - 1).getName().length() + 1) + "?", reminderTime, channel2,
+                                                        buildIntent("Are you getting ready for " + longEvents.get(longEvents.size() - 1).getName().substring(19, longEvents.get(longEvents.size() - 1).getName().length()) + "?", reminderTime, reminderChannel,
                                                                 alarmManager, notificationIntent, true);
                                                     }
+
+                                                    //Function for building static alarms based on time called here
+                                                    staticAlarmBuilder(longEvents.get(longEvents.size() - 1).getName().substring(19, longEvents.get(longEvents.size() - 1).getName().length()), dayOfMonth + " " + (monthOfYear + 1) + "-" + year,
+                                                            channel, alarmManager, notificationIntent, false);
 
                                                     updateAdapterList();
                                                 }
@@ -551,7 +579,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 final EditText input = new EditText(MainActivity.this);
 
-                                //Get and aet input text to item selected text
+                                //Get and set input text to item selected text
                                 if (tabNum == 0) {
                                     input.setText(dailyEvents.get(position).getName().substring(19, dailyEvents.get(position).getName().length()));
                                 } else if (tabNum == 1) {
@@ -603,7 +631,7 @@ public class MainActivity extends AppCompatActivity {
                                     Event removed = shortEvents.remove(position);
                                     shortEvents.remove(removed);
                                     for (int i = AlarmList.size() - 1; i >= 0; i--) {
-                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.equals("Are you getting ready for " + removed.name.substring(19, removed.name.length() + 1) + "?")) {
+                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.contains(removed.name)) {
                                             AlarmParams deleteAlarm = AlarmList.get(i);
                                             AlarmList.remove(deleteAlarm);
                                             System.out.println("AlarmList Size: " + AlarmList.size());
@@ -614,7 +642,7 @@ public class MainActivity extends AppCompatActivity {
                                     Event removed = longEvents.remove(position);
                                     longEvents.remove(removed);
                                     for (int i = AlarmList.size() - 1; i >= 0; i--) {
-                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.equals("Are you getting ready for " + removed.name.substring(19, removed.name.length() + 1) + "?")) {
+                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.contains(removed.name)) {
                                             AlarmParams deleteAlarm = AlarmList.get(i);
                                             AlarmList.remove(deleteAlarm);
                                             System.out.println("AlarmList Size: " + AlarmList.size());
@@ -666,7 +694,7 @@ public class MainActivity extends AppCompatActivity {
                                     Event removed = shortEvents.remove(position);
                                     shortEvents.remove(removed);
                                     for (int i = AlarmList.size() - 1; i >= 0; i--) {
-                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.equals("Are you getting ready for " + removed.name.substring(19, removed.name.length() + 1) + "?")) {
+                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.contains(removed.name)) {
                                             AlarmParams deleteAlarm = AlarmList.get(i);
                                             AlarmList.remove(deleteAlarm);
                                             System.out.println("AlarmList Size: " + AlarmList.size());
@@ -677,7 +705,7 @@ public class MainActivity extends AppCompatActivity {
                                     Event removed = longEvents.remove(position);
                                     longEvents.remove(removed);
                                     for (int i = AlarmList.size() - 1; i >= 0; i--) {
-                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.equals("Are you getting ready for " + removed.name.substring(19, removed.name.length() + 1) + "?")) {
+                                        if (AlarmList.get(i).title.equals(removed.name) || AlarmList.get(i).title.contains(removed.name)) {
                                             AlarmParams deleteAlarm = AlarmList.get(i);
                                             AlarmList.remove(deleteAlarm);
                                             System.out.println("AlarmList Size: " + AlarmList.size());
@@ -809,7 +837,7 @@ public class MainActivity extends AppCompatActivity {
             infoDialog.setIcon(R.drawable.ic_mood_black_24px);
             infoDialog.setMessage("Developed by: Cole Dorma\n\nThis application is still in development, therefore if you " +
                     "notice any bugs or would like to give some feedback, please don't hesitate to click that email button below " +
-                    "and I will try to get back to you as promptly as I can.\n\nI hope you enjoy Can't Wait and it betters the quality of your life!");
+                    "and I will try to get back to you as soon as I can.\n\nI hope you enjoy Can't Wait and it betters the quality of your life!");
             //editDialog.setIcon(R.drawable.key);
 
             infoDialog.setPositiveButton("OK",
@@ -847,7 +875,6 @@ public class MainActivity extends AppCompatActivity {
             String picturePath = cursor.getString(columnIndex);
             imageUrl = picturePath;
             Bitmap bitmap = null;
-            System.out.println("WE SAVED THE IMAGE " + imageUrl);
             if (EasyPermissions.hasPermissions(this, galleryPermissions)) {
                 bitmap = BitmapFactory.decodeFile(imageUrl);
             } else {
@@ -855,8 +882,6 @@ public class MainActivity extends AppCompatActivity {
                         101, galleryPermissions);
                 bitmap = BitmapFactory.decodeFile(imageUrl);
             }
-            System.out.println("WE SAVED THE IMAGE " + bitmap);
-
             saveImageToInternalStorage(bitmap);
             cursor.close();
         }
@@ -930,13 +955,11 @@ public class MainActivity extends AppCompatActivity {
         int currYear = mcurrentTime.get(Calendar.YEAR);
         int currMonth = mcurrentTime.get(Calendar.MONTH);
         int currDay = mcurrentTime.get(Calendar.DAY_OF_MONTH);
-        int currHour = mcurrentTime.get(Calendar.HOUR_OF_DAY);
-        int currMinute = mcurrentTime.get(Calendar.MINUTE);
-        int currSecond = mcurrentTime.get(Calendar.SECOND);
 
         day = day + month*30 + year*365;
         currDay = currDay + (currMonth+1)*30 + currYear*365;
 
+        //Day before 3 days before, 7 days, 14, 21, 1 month
         if (day > currDay+2 && day <= currDay+7){ //week -- reminder every 2 days
             System.out.println("Repeating alarm set for every 2 days");
             return "2";
@@ -956,8 +979,90 @@ public class MainActivity extends AppCompatActivity {
         return "";
     }
 
+    //Function for setting static alarms as the event is approaching
+    public void staticAlarmBuilder(String title, String time, int inputChannel, AlarmManager am, Intent intent, boolean repeat) {
+        System.out.println("Reminder Algorithm");
+
+        int day = Integer.parseInt(time.substring(0, time.indexOf(" ")));
+        int dayOfMonth = day;
+        int month = Integer.parseInt(time.substring(time.indexOf(" ") + 1, time.indexOf("-")));
+        int year = Integer.parseInt(time.substring(time.indexOf("-") + 1, time.length()));
+
+        Calendar eventTime = Calendar.getInstance();
+        eventTime.set(Calendar.YEAR, year);
+        eventTime.set(Calendar.MONTH, month);
+        eventTime.set(Calendar.DAY_OF_MONTH, dayOfMonth);
+        long eventTimeMilli = eventTime.getTimeInMillis();
+
+        Calendar mcurrentTime = Calendar.getInstance();
+        int currYear = mcurrentTime.get(Calendar.YEAR);
+        int currMonth = mcurrentTime.get(Calendar.MONTH);
+        int currDay = mcurrentTime.get(Calendar.DAY_OF_MONTH);
+
+        day = day + month*30 + year*365;
+        currDay = currDay + (currMonth+1)*30 + currYear*365;
+
+        //Format: dayOfMonth + " " + (monthOfYear + 1) + "-" + year
+        long oneDay = AlarmManager.INTERVAL_DAY;
+        int daysBefore = 0;
+        long reminderTime = 0;
+        Calendar reminderTimeDate = Calendar.getInstance();
+
+        System.out.println("Day and currDay: " + day + currDay);
+
+        //Setting static alarms based on the time
+        if (day >= currDay+1){ //alarm day before
+            System.out.println("1 day before alarm set");
+            daysBefore = 1;
+            reminderTime = eventTimeMilli - (daysBefore*oneDay);
+            reminderTimeDate.setTimeInMillis(reminderTime);
+            String staticTime = (reminderTimeDate.get(Calendar.DAY_OF_MONTH)) + " " + (reminderTimeDate.get(Calendar.MONTH)) + "-" + reminderTimeDate.get(Calendar.YEAR);
+            buildIntent("Only 1 day until " + title + "!", staticTime, inputChannel, am, intent, false);
+        }
+        if (day >= currDay+3) { //alarm 3 days before
+            System.out.println("3 days before alarm set");
+            daysBefore = 3;
+            reminderTime = eventTimeMilli - (daysBefore*oneDay);
+            reminderTimeDate.setTimeInMillis(reminderTime);
+            String staticTime = (reminderTimeDate.get(Calendar.DAY_OF_MONTH)) + " " + (reminderTimeDate.get(Calendar.MONTH)) + "-" + reminderTimeDate.get(Calendar.YEAR);
+            buildIntent("Only 3 days until " + title + "!", staticTime, inputChannel, am, intent, false);
+        }
+        if (day >= currDay+7) { //alarm 7 days before
+            System.out.println("7 days before alarm set");
+            daysBefore = 7;
+            reminderTime = eventTimeMilli - (daysBefore*oneDay);
+            reminderTimeDate.setTimeInMillis(reminderTime);
+            String staticTime = (reminderTimeDate.get(Calendar.DAY_OF_MONTH)) + " " + (reminderTimeDate.get(Calendar.MONTH)) + "-" + reminderTimeDate.get(Calendar.YEAR);
+            buildIntent("Only 7 days until " + title + "!", staticTime, inputChannel, am, intent, false);
+        }
+        if (day >= currDay+14) { //alarm 14 days before
+            System.out.println("14 days before alarm set");
+            daysBefore = 14;
+            reminderTime = eventTimeMilli - (daysBefore*oneDay);
+            reminderTimeDate.setTimeInMillis(reminderTime);
+            String staticTime = (reminderTimeDate.get(Calendar.DAY_OF_MONTH)) + " " + (reminderTimeDate.get(Calendar.MONTH)) + "-" + reminderTimeDate.get(Calendar.YEAR);
+            buildIntent("Only 14 days until " + title + "!", staticTime, inputChannel, am, intent, false);
+        }
+        if (day >= currDay+21) { //alarm 21 days before
+            System.out.println("21 days before alarm set");
+            daysBefore = 21;
+            reminderTime = eventTimeMilli - (daysBefore*oneDay);
+            reminderTimeDate.setTimeInMillis(reminderTime);
+            String staticTime = (reminderTimeDate.get(Calendar.DAY_OF_MONTH)) + " " + (reminderTimeDate.get(Calendar.MONTH)) + "-" + reminderTimeDate.get(Calendar.YEAR);
+            buildIntent("Only 21 days until " + title + "!", staticTime, inputChannel, am, intent, false);
+        }
+        if (day >= currDay+30) { //alarm 30 days before
+            daysBefore = 30;
+            reminderTime = eventTimeMilli - (daysBefore*oneDay);
+            reminderTimeDate.setTimeInMillis(reminderTime);
+            System.out.println("30 days before alarm set");
+            String staticTime = (reminderTimeDate.get(Calendar.DAY_OF_MONTH)) + " " + (reminderTimeDate.get(Calendar.MONTH)) + "-" + reminderTimeDate.get(Calendar.YEAR);
+            buildIntent("Only 30 days until " + title + "!", staticTime, inputChannel, am, intent, false);
+        }
+    }
+
     //Function for building alarm intent
-    public void buildIntent(String title, String time, int channel, AlarmManager am, Intent intent, boolean repeat){
+    public void buildIntent(String title, String time, int inputChannel, AlarmManager am, Intent intent, boolean repeat){
         int intervalTime = 0;
 
         if (time.length() <= 2){
@@ -968,7 +1073,7 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra("title", title);
         intent.putExtra("time", time);
 
-        PendingIntent broadcast = PendingIntent.getBroadcast(ctx, channel, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent broadcast = PendingIntent.getBroadcast(ctx, inputChannel, intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
         Calendar cal = Calendar.getInstance();
         Calendar currCal = Calendar.getInstance();
@@ -977,7 +1082,7 @@ public class MainActivity extends AppCompatActivity {
         int currTime = currHour*60 + currMinute;
 
 
-        if (tabNum == 0){
+        if (tabNum == 0){ //If in daily
             int hour = 0;
             int minute = 0;
 
@@ -1000,11 +1105,12 @@ public class MainActivity extends AppCompatActivity {
             cal.set(Calendar.HOUR_OF_DAY, hour);
             cal.set(Calendar.MINUTE, minute);
             cal.set(Calendar.SECOND, 8);
-
-        } else if (tabNum == 1 && time.length() <= 10){
+        } else if ((tabNum == 1 && time.length() <= 10) || inputChannel >= 100000){ //If in short term or a static alarm
             int day = 0;
             int month = 0;
             int year = 0;
+
+            System.out.println("Time: " + time);
 
             day = Integer.parseInt(time.substring(0, time.indexOf(" ")));
             month = Integer.parseInt(time.substring(time.indexOf(" ") + 1, time.indexOf("-")));
@@ -1017,7 +1123,7 @@ public class MainActivity extends AppCompatActivity {
             cal.set(Calendar.HOUR_OF_DAY, 8);
             cal.set(Calendar.MINUTE, 1);
 
-        } else if (tabNum == 2 && time.length() <= 10){
+        } else if (tabNum == 2 && time.length() <= 10){ //If in long term
             int day = 0;
             int month = 0;
             int year = 0;
@@ -1058,7 +1164,7 @@ public class MainActivity extends AppCompatActivity {
                 am.setRepeating(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), AlarmManager.INTERVAL_DAY, broadcast);
             }
 
-            AlarmParams alarm = new AlarmParams(title, time, cal, channel, true);
+            AlarmParams alarm = new AlarmParams(title, time, cal, inputChannel, true);
             AlarmList.add(alarm);
             Gson gsonAlarm = new Gson();
             String jsonAlarm = gsonAlarm.toJson(AlarmList);
@@ -1068,7 +1174,7 @@ public class MainActivity extends AppCompatActivity {
             editor.commit();
 
         } else {
-            AlarmParams alarm = new AlarmParams(title, time, cal, channel, false);
+            AlarmParams alarm = new AlarmParams(title, time, cal, inputChannel, false);
             AlarmList.add(alarm);
             Gson gsonAlarm = new Gson();
             System.out.println("AlarmList count: " + AlarmList.size());
@@ -1097,7 +1203,8 @@ public class MainActivity extends AppCompatActivity {
         editor.putString("LongEvent", jsonLong);
 
         editor.putInt("CHANNEL", channel);
-        editor.putInt("CHANNEL2", channel2);
+        editor.putInt("CHANNEL2", reminderChannel);
+        editor.putInt("CHANNEL3", staticChannel);
 
         editor.commit();
 
@@ -1116,14 +1223,14 @@ public class MainActivity extends AppCompatActivity {
 
         final Intent notificationIntent = new Intent("android.media.action.DISPLAY_NOTIFICATION");
 
-        if (dailyEvents.size() == 0 && shortEvents.size() == 0 && longEvents.size() == 0) {
+        //if statement to check if all are zero, if so, then remove all alarms
+        if (dailyEvents.size() == 0 && shortEvents.size() == 0 && longEvents.size() == 0 && AlarmList.size() != 0) {
             for (int i = AlarmList.size() - 1; i >= 0; i--) {
-                AlarmList.remove(AlarmList.get(i));
-                cancelIntent(AlarmList.get(i).channel, alarmManager, notificationIntent);
+                AlarmParams removed = AlarmList.get(i);
+                AlarmList.remove(removed);
+                cancelIntent(removed.channel, alarmManager, notificationIntent);
             }
         }
-
-        //if statement to check if all are zero, if so, then remove all alarms
 
         Calendar mcurrentTime = Calendar.getInstance();
         int currYear = mcurrentTime.get(Calendar.YEAR);

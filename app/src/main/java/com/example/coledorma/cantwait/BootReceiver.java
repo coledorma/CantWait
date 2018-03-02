@@ -48,6 +48,7 @@ public class BootReceiver extends BroadcastReceiver {
 
         System.out.println("AlarmList count: " + AlarmList.size());
 
+        //When phone reboots - re-set all of the alarms properly
         String action = intent.getAction();
         if (action.equals(BOOT_COMPLETED) ||
                 action.equals(QUICKBOOT_POWERON)) {

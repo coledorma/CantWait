@@ -48,7 +48,7 @@ public class AlarmReceiver extends BroadcastReceiver{
                 .setTicker("Can't Wait!")
                 .setContentIntent(pIntent)
                 .setAutoCancel(true)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notif_smiley)
                 .build();
 
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
